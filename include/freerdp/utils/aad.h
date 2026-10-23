@@ -155,6 +155,21 @@ extern "C"
 	FREERDP_API WINPR_JSON* freerdp_utils_aad_get_wellknown(wLog* log, const char* base,
 	                                                        const char* tenantid);
 
+	/** Fetch AAD/ARM discovery using the context's HTTPS certificate management.
+	 *
+	 * @param context The connection context, or null to use OpenSSL verification only.
+	 * @param log A logger instance to use.
+	 * @param base The authority hostname, optionally including a port.
+	 * @param tenantid The tenant to use for the connection, or common for default.
+	 * @return The discovery document, or null on failure.
+	 * @since version 3.32.3
+	 */
+	WINPR_ATTR_MALLOC(WINPR_JSON_Delete, 1)
+	WINPR_ATTR_NODISCARD
+	FREERDP_API WINPR_JSON* freerdp_utils_aad_get_wellknown_ex(rdpContext* context, wLog* log,
+	                                                           const char* base,
+	                                                           const char* tenantid);
+
 #ifdef __cplusplus
 }
 #endif

@@ -24,6 +24,7 @@
 #include <winpr/json.h>
 #include <winpr/stream.h>
 #include <winpr/crypto.h>
+#include <winpr/collections.h>
 
 #include <freerdp/config.h>
 #include <freerdp/api.h>
@@ -210,6 +211,7 @@ struct rdp_rdp
 	WINPR_JSON* wellknown;
 	FreeRDPTimer* timer;
 	WINPR_ATTR_NODISCARD pGetCommonAccessToken GetCommonAccessToken;
+	wArrayList* httpAcceptedCertificates;
 };
 
 WINPR_ATTR_NODISCARD

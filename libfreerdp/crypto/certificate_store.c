@@ -32,21 +32,46 @@
 #include <winpr/crt.h>
 #include <winpr/file.h>
 #include <winpr/path.h>
+#include <winpr/print.h>
 
 #include <freerdp/settings.h>
 
 #include <freerdp/crypto/crypto.h>
 #include <freerdp/crypto/certificate_store.h>
 #include <freerdp/log.h>
+#include "certificate_store.h"
 
 struct rdp_certificate_store
 {
 	char* certs_path;
 	char* server_path;
+	BOOL hash_hostnames;
 };
 
 static const char certificate_store_dir[] = "certs";
 static const char certificate_server_dir[] = "server";
+
+static char* freerdp_certificate_store_hash_host(const char* host, UINT16 port)
+{
+	BYTE digest[WINPR_SHA256_DIGEST_LENGTH] = WINPR_C_ARRAY_INIT;
+	char hex[2 * sizeof(digest) + 1] = WINPR_C_ARRAY_INIT;
+	char name[sizeof(hex) + sizeof("_65535.pem")] = WINPR_C_ARRAY_INIT;
+	if (!host)
+		return nullptr;
+	char* normalized = _strdup(host);
+	if (!normalized)
+		return nullptr;
+	const size_t length = strlen(normalized);
+	for (size_t x = 0; x < length; x++)
+		normalized[x] = (char)tolower((unsigned char)normalized[x]);
+	/* Preserve punctuation so IPv6 addresses cannot alias dotted DNS names. */
+	const BOOL rc = winpr_Digest(WINPR_MD_SHA256, normalized, length, digest, sizeof(digest));
+	free(normalized);
+	if (!rc || !winpr_BinToHexStringBuffer(digest, sizeof(digest), hex, sizeof(hex), FALSE))
+		return nullptr;
+	(void)snprintf(name, sizeof(name), "%s_%" PRIu16 ".pem", hex, port);
+	return _strdup(name);
+}
 
 static char* freerdp_certificate_store_file_path(const rdpCertificateStore* store, const char* hash)
 {
@@ -83,10 +108,10 @@ BOOL freerdp_certificate_store_remove_data(rdpCertificateStore* store,
 
 	WINPR_ASSERT(store);
 
-	const char* hash = freerdp_certificate_data_get_hash(data);
-	if (!hash)
+	if (!data)
 		return FALSE;
-	char* path = freerdp_certificate_store_file_path(store, hash);
+	char* path = freerdp_certificate_store_get_cert_path(
+	    store, freerdp_certificate_data_get_host(data), freerdp_certificate_data_get_port(data));
 
 	if (!path)
 		return FALSE;
@@ -101,9 +126,12 @@ BOOL freerdp_certificate_store_save_data(rdpCertificateStore* store, const rdpCe
 {
 	BOOL rc = FALSE;
 	const char* base = freerdp_certificate_store_get_hosts_path(store);
-	const char* hash = freerdp_certificate_data_get_hash(data);
-	char* path = freerdp_certificate_store_file_path(store, hash);
+	char* path = freerdp_certificate_store_get_cert_path(
+	    store, freerdp_certificate_data_get_host(data), freerdp_certificate_data_get_port(data));
 	FILE* fp = nullptr;
+
+	if (!path)
+		goto fail;
 
 	if (!winpr_PathFileExists(base))
 	{
@@ -146,7 +174,14 @@ fail:
 
 rdpCertificateStore* freerdp_certificate_store_new(const rdpSettings* settings)
 {
+	return freerdp_certificate_store_new_ex(settings, nullptr);
+}
+
+rdpCertificateStore* freerdp_certificate_store_new_ex(const rdpSettings* settings,
+                                                      const char* subpath)
+{
 	rdpCertificateStore* store = (rdpCertificateStore*)calloc(1, sizeof(rdpCertificateStore));
+	char* path = nullptr;
 
 	if (!store)
 		return nullptr;
@@ -155,14 +190,21 @@ rdpCertificateStore* freerdp_certificate_store_new(const rdpSettings* settings)
 	if (!base)
 		goto fail;
 
-	store->certs_path = GetCombinedPath(base, certificate_store_dir);
-	store->server_path = GetCombinedPath(base, certificate_server_dir);
+	path = subpath ? GetCombinedPath(base, subpath) : _strdup(base);
+	if (!path)
+		goto fail;
+	store->certs_path = GetCombinedPath(path, certificate_store_dir);
+	/* A separate directory prevents old, ambiguous filenames from becoming hashed pins. */
+	store->server_path = GetCombinedPath(path, subpath ? "server-sha256" : certificate_server_dir);
+	store->hash_hostnames = subpath != nullptr;
 	if (!store->certs_path || !store->server_path)
 		goto fail;
 
+	free(path);
 	return store;
 
 fail:
+	free(path);
 	WINPR_PRAGMA_DIAG_PUSH
 	WINPR_PRAGMA_DIAG_IGNORED_MISMATCHED_DEALLOC
 	freerdp_certificate_store_free(store);
@@ -197,7 +239,8 @@ char* freerdp_certificate_store_get_cert_path(const rdpCertificateStore* store, 
 {
 	WINPR_ASSERT(store);
 
-	char* hash = freerdp_certificate_data_hash(host, port);
+	char* hash = store->hash_hostnames ? freerdp_certificate_store_hash_host(host, port)
+	                                   : freerdp_certificate_data_hash(host, port);
 	if (!hash)
 		return nullptr;
 	char* path = freerdp_certificate_store_file_path(store, hash);

@@ -21,6 +21,7 @@
 #define FREERDP_UTILS_HTTP_H
 
 #include <freerdp/api.h>
+#include <freerdp/types.h>
 
 typedef enum
 {
@@ -74,6 +75,25 @@ extern "C"
 	WINPR_ATTR_NODISCARD
 	FREERDP_API BOOL freerdp_http_request(const char* url, const char* body, long* status_code,
 	                                      BYTE** response, size_t* response_length);
+
+	/** Make an HTTPS request using the context's certificate management callbacks.
+	 *
+	 * With ExternalCertificateManagement, VerifyX509Certificate must accept the peer's
+	 * certificate chain. Otherwise OpenSSL verifies the chain and hostname first, and
+	 * VerifyX509Certificate may accept a certificate that fails verification. A hostname
+	 * mismatch is reported with VERIFY_CERT_FLAG_MISMATCH. Verification completes before
+	 * any HTTP data is sent. With a null context, only OpenSSL verification is used.
+	 * Non-external acceptance is scoped to the HTTPS hostname and port: return 1 stores
+	 * the certificate under ConfigPath/https, and return 2 accepts it until the connection
+	 * context is reset or freed. Session acceptance requires an initialized rdpContext.
+	 * AutoDenyCertificate rejects untrusted peers without invoking the fallback callback.
+	 *
+	 * @since version 3.32.3
+	 */
+	WINPR_ATTR_NODISCARD
+	FREERDP_API BOOL freerdp_http_request_ex(rdpContext* context, const char* url, const char* body,
+	                                         long* status_code, BYTE** response,
+	                                         size_t* response_length);
 
 	WINPR_ATTR_NODISCARD
 	FREERDP_API const char* freerdp_http_status_string(long status);

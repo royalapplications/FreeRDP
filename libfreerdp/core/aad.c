@@ -226,8 +226,8 @@ static BOOL aad_get_nonce(rdpAad* aad)
 		return FALSE;
 	}
 
-	if (!freerdp_http_request(url, "grant_type=srv_challenge", &resp_code, &response,
-	                          &response_length))
+	if (!freerdp_http_request_ex(aad->rdpcontext, url, "grant_type=srv_challenge", &resp_code,
+	                             &response, &response_length))
 	{
 		WLog_Print(aad->log, WLOG_ERROR, "nonce request failed");
 		goto fail;
@@ -911,7 +911,7 @@ BOOL aad_fetch_wellknown(wLog* log, rdpContext* context)
 	const char* tenantid = "common";
 	if (useTenant)
 		tenantid = freerdp_settings_get_string(context->settings, FreeRDP_GatewayAvdAadtenantid);
-	rdp->wellknown = freerdp_utils_aad_get_wellknown(log, base, tenantid);
+	rdp->wellknown = freerdp_utils_aad_get_wellknown_ex(context, log, base, tenantid);
 	return rdp->wellknown != nullptr;
 }
 
@@ -1012,6 +1012,14 @@ WINPR_ATTR_MALLOC(WINPR_JSON_Delete, 1)
 WINPR_ATTR_NODISCARD
 WINPR_JSON* freerdp_utils_aad_get_wellknown(wLog* log, const char* base, const char* tenantid)
 {
+	return freerdp_utils_aad_get_wellknown_ex(nullptr, log, base, tenantid);
+}
+
+WINPR_ATTR_MALLOC(WINPR_JSON_Delete, 1)
+WINPR_ATTR_NODISCARD
+WINPR_JSON* freerdp_utils_aad_get_wellknown_ex(rdpContext* context, wLog* log, const char* base,
+                                               const char* tenantid)
+{
 	WINPR_ASSERT(base);
 	WINPR_ASSERT(tenantid);
 
@@ -1029,7 +1037,8 @@ WINPR_JSON* freerdp_utils_aad_get_wellknown(wLog* log, const char* base, const c
 	BYTE* response = nullptr;
 	long resp_code = 0;
 	size_t response_length = 0;
-	const BOOL rc = freerdp_http_request(str, nullptr, &resp_code, &response, &response_length);
+	const BOOL rc =
+	    freerdp_http_request_ex(context, str, nullptr, &resp_code, &response, &response_length);
 	if (!rc || (resp_code != HTTP_STATUS_OK))
 	{
 		WLog_Print(log, WLOG_ERROR, "request for '%s' failed with: %s", str,

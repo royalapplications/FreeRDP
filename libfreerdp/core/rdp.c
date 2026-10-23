@@ -2550,6 +2550,9 @@ static void rdp_reset_free(rdpRdp* rdp)
 {
 	WINPR_ASSERT(rdp);
 
+	ArrayList_Free(rdp->httpAcceptedCertificates);
+	rdp->httpAcceptedCertificates = nullptr;
+
 	security_lock(rdp);
 	rdp_free_rc4_decrypt_keys(rdp);
 	rdp_free_rc4_encrypt_keys(rdp);

@@ -179,7 +179,7 @@ static BOOL arm_fetch_wellknown(rdpArm* arm)
 		tenantid =
 		    freerdp_settings_get_string(arm->context->settings, FreeRDP_GatewayAvdAadtenantid);
 
-	rdp->wellknown = freerdp_utils_aad_get_wellknown(arm->log, base, tenantid);
+	rdp->wellknown = freerdp_utils_aad_get_wellknown_ex(arm->context, arm->log, base, tenantid);
 	return (rdp->wellknown != nullptr);
 }
 
